@@ -1,15 +1,16 @@
 {
-  "name": "telegram-bot",
-  "version": "1.0.0",
-  "description": "A Telegram bot for URL shortening using TinyEarn",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "dependencies": {
-    "node-telegram-bot-api": "^0.56.0",
-    "axios": "^0.21.1",
-    "express": "^4.17.1",
-    "fs": "0.0.1-security"
-  }
+    "name": "telegram-bot",
+    "version": "1.0.0",
+    "description": "A Telegram bot for URL shortening using TinyEarn",
+    "main": "bot.js",
+    "scripts": {
+        "start": "node bot.js"
+    },
+    "dependencies": {
+        "axios": "^0.21.1",
+        "express": "^4.17.1",
+        "fs": "0.0.1-security",
+        "node-telegram-bot-api": "^0.56.0",
+        "redis": "^4.7.0"
+    }
 }
