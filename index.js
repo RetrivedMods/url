@@ -1,6 +1,25 @@
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
-const fs = require('fs');
+const { createClient } = require('redis');
+
+// Create a Redis client
+const redisClient = createClient({
+  username: 'default',
+  password: '1FQbLOuQTGJjc8V56mHDdobMXXm9WjQp',
+  socket: {
+    host: 'redis-12397.c13.us-east-1-3.ec2.redns.redis-cloud.com',
+    port: 12397,
+  },
+});
+
+// Handle Redis connection errors
+redisClient.on('error', (err) => console.log('Redis Client Error', err));
+
+// Connect to Redis
+(async () => {
+  await redisClient.connect();
+  console.log('Connected to Redis');
+})();
 
 const express = require('express');
 const app = express();
@@ -35,32 +54,32 @@ bot.onText(/\/start/, (msg) => {
 });
 
 // Command: /setarklinks
-bot.onText(/\/setarklinks (.+)/, (msg, match) => {
+bot.onText(/\/setarklinks (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
   const userToken = match[1].trim(); // Get the API token provided by the user
 
-  // Save the user's TinyEarn API token to the database
-  saveUserToken(chatId, userToken);
+  // Save the user's TinyEarn API token to Redis
+  await redisClient.set(`user:${chatId}:token`, userToken);
 
   const response = `TinyEarn API token set successfully. Your token: ${userToken}`;
   bot.sendMessage(chatId, response);
 });
 
 // Listen for any message (not just commands)
-bot.on('message', (msg) => {
+bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const messageText = msg.text;
 
   // If the message starts with "http://" or "https://", assume it's a URL and try to shorten it
   if (messageText && (messageText.startsWith('http://') || messageText.startsWith('https://'))) {
-    shortenUrlAndSend(chatId, messageText);
+    await shortenUrlAndSend(chatId, messageText);
   }
 });
 
 // Function to shorten the URL and send the result
 async function shortenUrlAndSend(chatId, Url) {
-  // Retrieve the user's TinyEarn API token from the database
-  const arklinksToken = getUserToken(chatId);
+  // Retrieve the user's TinyEarn API token from Redis
+  const arklinksToken = await redisClient.get(`user:${chatId}:token`);
 
   if (!arklinksToken) {
     bot.sendMessage(chatId, 'Please provide your TinyEarn API token first. Use the command: /setarklinks YOUR_TINYEARN_API_TOKEN');
@@ -69,11 +88,15 @@ async function shortenUrlAndSend(chatId, Url) {
 
   try {
     const apiUrl = `https://tinyearn.com/api?api=${arklinksToken}&url=${Url}`;
-
-    // Make a request to the TinyEarn API to shorten the URL
     const response = await axios.get(apiUrl);
-    const shortUrl = response.data.shortenedUrl;
+    console.log('API Response:', response.data);
 
+    if (response.data.error) {
+      bot.sendMessage(chatId, `API Error: ${response.data.error}`);
+      return;
+    }
+
+    const shortUrl = response.data.shortenedUrl;
     const responseMessage = `Shortened URL: ${shortUrl}`;
     bot.sendMessage(chatId, responseMessage);
   } catch (error) {
@@ -86,27 +109,4 @@ async function shortenUrlAndSend(chatId, Url) {
 function isValidUrl(url) {
   const urlPattern = /^(|ftp|http|https):\/\/[^ "]+$/;
   return urlPattern.test(url);
-}
-
-// Function to save user's TinyEarn API token to the database (Replit JSON database)
-function saveUserToken(chatId, token) {
-  const dbData = getDatabaseData();
-  dbData[chatId] = token;
-  fs.writeFileSync('database.json', JSON.stringify(dbData, null, 2));
-}
-
-// Function to retrieve user's TinyEarn API token from the database
-function getUserToken(chatId) {
-  const dbData = getDatabaseData();
-  return dbData[chatId];
-}
-
-// Function to read the database file and parse the JSON data
-function getDatabaseData() {
-  try {
-    return JSON.parse(fs.readFileSync('database.json', 'utf8'));
-  } catch (error) {
-    // Return an empty object if the file doesn't exist or couldn't be parsed
-    return {};
-  }
 }
